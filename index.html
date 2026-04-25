@@ -277,8 +277,14 @@ details summary::-webkit-details-marker{display:none}
 <!-- DASHBOARD -->
 <div class="page active" id="page-dashboard">
   <div class="date-header">
-    <div class="date-day" id="dateDayNum"></div>
-    <div class="date-full" id="dateFull"></div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px">
+      <button onclick="navigateDate(-1)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;padding:4px 8px;border-radius:8px;line-height:1" title="Previous day">‹</button>
+      <div style="text-align:center">
+        <div class="date-day" id="dateDayNum"></div>
+        <div class="date-full" id="dateFull"></div>
+      </div>
+      <button onclick="navigateDate(1)" id="nextDayBtn" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;padding:4px 8px;border-radius:8px;line-height:1" title="Next day">›</button>
+    </div>
   </div>
   <div class="target-mode-bar">
     <span class="target-mode-label">Targets:</span>
@@ -295,7 +301,10 @@ details summary::-webkit-details-marker{display:none}
 <!-- LOG -->
 <div class="page" id="page-log">
   <div style="padding:8px 0 16px">
-    <div class="section-mini-title">Add food to meal</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="section-mini-title" style="margin:0">Add food to meal</div>
+      <div style="font-size:12px;font-weight:600" id="logDateLabel"></div>
+    </div>
     <div class="form-group">
       <label class="form-label">Meal</label>
       <select class="form-input" id="logMealSelect">
@@ -505,18 +514,54 @@ details summary::-webkit-details-marker{display:none}
   </div>
 </div>
 
+<!-- RECIPE PORTION MODAL -->
+<div class="modal-overlay" id="recipeQtyModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="recipeQtyTitle">Log Recipe</div>
+    <div id="recipeQtyInfo"></div>
+    <div class="form-group" style="margin-top:8px">
+      <label class="form-label">How much did you have? (%)</label>
+      <input type="number" class="form-input" id="recipeQtyInput" value="100" min="1" max="500" oninput="updateRecipeQtyPreview()">
+      <div class="form-hint">100% = full recipe · 50% = half · 200% = double</div>
+    </div>
+    <div class="form-hint" id="recipeQtyPreview" style="font-size:13px;margin-top:4px;color:var(--text)"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('recipeQtyModal')">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" onclick="confirmRecipeLog()">Log</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 const KJ_TO_KCAL=1/4.184;
 const MEALS=['Breakfast','Lunch','Dinner','Snacks'];
 const MEAL_ICONS={Breakfast:'🌅',Lunch:'☀️',Dinner:'🌙',Snacks:'🍎'};
-const TODAY=new Date().toISOString().split('T')[0];
-const IS_WEEKEND=[0,6].includes(new Date().getDay());
+// Australian date helpers — always use AU/Sydney time
+function getAUDate(){
+  // Format date in Sydney timezone
+  const now = new Date();
+  const auStr = now.toLocaleDateString('en-AU', {timeZone:'Australia/Sydney', year:'numeric', month:'2-digit', day:'2-digit'});
+  // Parse dd/mm/yyyy → yyyy-mm-dd
+  const [d,m,y] = auStr.split('/');
+  return `${y}-${m}-${d}`;
+}
+function getAUDay(){
+  const now = new Date();
+  return +now.toLocaleDateString('en-AU', {timeZone:'Australia/Sydney', weekday:'short'}).replace(/Sun/,'0').replace(/Mon/,'1').replace(/Tue/,'2').replace(/Wed/,'3').replace(/Thu/,'4').replace(/Fri/,'5').replace(/Sat/,'6').charAt(0)||new Date(getAUDate()+'T12:00:00').getDay();
+}
+function getAUTime(){
+  return new Date().toLocaleTimeString('en-AU', {timeZone:'Australia/Sydney', hour:'2-digit', minute:'2-digit'});
+}
+const TODAY = getAUDate();
+const IS_WEEKEND = [0,6].includes(new Date(TODAY+'T12:00:00').getDay());
 
 const DEFAULT_TARGETS={weekday:{cal:2000,pro:150,carb:250,fat:65},weekend:{cal:2200,pro:130,carb:280,fat:75}};
 let allTargets=JSON.parse(localStorage.getItem('nl_targets_v2')||JSON.stringify(DEFAULT_TARGETS));
 let activeMode=localStorage.getItem('nl_mode_'+TODAY)||(IS_WEEKEND?'weekend':'weekday');
+let activeLogDate=TODAY; // which date we're viewing/logging to
 let settingsEditMode='weekday';
 let dailyLogs=JSON.parse(localStorage.getItem('nl_logs')||'{}');
 let recipes=JSON.parse(localStorage.getItem('nl_recipes')||'[]');
@@ -527,14 +572,14 @@ let expandedMeals={Breakfast:true,Lunch:true,Dinner:true,Snacks:true};
 let currentIngredients=[];
 
 function tgt(){return allTargets[activeMode];}
-function todayLog(){if(!dailyLogs[TODAY])dailyLogs[TODAY]=[];return dailyLogs[TODAY];}
+function todayLog(){if(!dailyLogs[activeLogDate])dailyLogs[activeLogDate]=[];return dailyLogs[activeLogDate];}
 function saveLogs(){localStorage.setItem('nl_logs',JSON.stringify(dailyLogs));pushLogs();}
 function saveRecipes(){localStorage.setItem('nl_recipes',JSON.stringify(recipes));pushRecipes();}
 function saveAllTargets(){localStorage.setItem('nl_targets_v2',JSON.stringify(allTargets));pushTargets();}
 
 function setTargetMode(mode){
   activeMode=mode;
-  localStorage.setItem('nl_mode_'+TODAY,mode);
+  localStorage.setItem('nl_mode_'+activeLogDate, mode);
   document.getElementById('modeWeekday').classList.toggle('active',mode==='weekday');
   document.getElementById('modeWeekend').classList.toggle('active',mode==='weekend');
   renderDashboard();
@@ -548,10 +593,20 @@ function showPage(page){
   const idx=['dashboard','log','recipes','history','settings'].indexOf(page);
   if(idx>=0)document.querySelectorAll('.tab')[idx].classList.add('active');
   if(page==='dashboard')renderDashboard();
+  if(page==='log'){
+    renderLogRecipes();
+    // Show which date we're logging to
+    const isToday=activeLogDate===TODAY;
+    const logDateEl=document.getElementById('logDateLabel');
+    if(logDateEl){
+      const d=new Date(activeLogDate+'T12:00:00');
+      logDateEl.textContent=isToday?'Today':d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
+      logDateEl.style.color=isToday?'var(--text3)':'var(--cal)';
+    }
+  }
   if(page==='recipes')renderRecipes();
   if(page==='history')renderHistory();
   if(page==='settings')renderSettings();
-  if(page==='log')renderLogRecipes();
 }
 
 let dark=localStorage.getItem('nl_theme')!=='light';
@@ -570,10 +625,28 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');if(id==='qtyModal'&&cameraStream)stopCamera();}
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeModal(o.id);}));
 
+function navigateDate(dir){
+  const d = new Date(activeLogDate+'T12:00:00');
+  d.setDate(d.getDate()+dir);
+  const newDate = d.toISOString().split('T')[0];
+  // Don't go into the future past today
+  if(newDate > TODAY) return;
+  activeLogDate = newDate;
+  // Update mode for new date
+  activeMode = localStorage.getItem('nl_mode_'+activeLogDate) || ([0,6].includes(d.getDay())?'weekend':'weekday');
+  renderDashboard();
+}
+
 function renderDashboard(){
-  const now=new Date();
-  document.getElementById('dateDayNum').textContent=now.getDate();
-  document.getElementById('dateFull').textContent=now.toLocaleDateString('en-AU',{weekday:'long',year:'numeric',month:'long'});
+  const dateObj = new Date(activeLogDate+'T12:00:00');
+  const isToday = activeLogDate === TODAY;
+  document.getElementById('dateDayNum').textContent = dateObj.getDate();
+  document.getElementById('dateFull').textContent = isToday
+    ? 'Today — '+dateObj.toLocaleDateString('en-AU',{weekday:'long',month:'long',year:'numeric'})
+    : dateObj.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  // Hide next arrow if we're on today
+  const nextBtn = document.getElementById('nextDayBtn');
+  if(nextBtn) nextBtn.style.opacity = isToday ? '0.2' : '1';
   document.getElementById('modeWeekday').classList.toggle('active',activeMode==='weekday');
   document.getElementById('modeWeekend').classList.toggle('active',activeMode==='weekend');
   const log=todayLog(),totals=calcTotals(log),t=tgt();
@@ -634,7 +707,7 @@ function toggleMeal(m){expandedMeals[m]=!expandedMeals[m];renderDashboard();}
 function calcTotals(entries){return entries.reduce((a,e)=>({cal:a.cal+(+e.cal||0),pro:a.pro+(+e.pro||0),carb:a.carb+(+e.carb||0),fat:a.fat+(+e.fat||0)}),{cal:0,pro:0,carb:0,fat:0});}
 function fmtG(v){return(Math.round((v||0)*10)/10)+'g';}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function deleteEntry(idx){dailyLogs[TODAY].splice(idx,1);saveLogs();renderDashboard();toast('Entry removed');}
+function deleteEntry(idx){dailyLogs[activeLogDate].splice(idx,1);saveLogs();renderDashboard();toast('Entry removed');}
 function openLogForMeal(meal){document.getElementById('logMealSelect').value=meal;showPage('log');}
 
 // ── OPEN FOOD FACTS API (English results) ──
@@ -937,9 +1010,11 @@ function logManual(){
   toast('Logged to '+meal+' ✓');showPage('dashboard');
 }
 function addEntry(data){
-  const time=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-  if(!dailyLogs[TODAY])dailyLogs[TODAY]=[];
-  dailyLogs[TODAY].push({...data,time,date:TODAY});saveLogs();
+  const time = getAUTime();
+  const date = activeLogDate;
+  if(!dailyLogs[date]) dailyLogs[date]=[];
+  dailyLogs[date].push({...data, time, date});
+  saveLogs();
 }
 
 // ── RECIPES ──
@@ -957,13 +1032,49 @@ function renderLogRecipes(){
   if(!recipes.length){list.innerHTML=`<div class="empty-state"><p>No recipes saved yet.</p></div>`;return;}
   list.innerHTML=recipes.map((r,i)=>{const t=calcTotals(r.ingredients||[]);return `<div class="recipe-card">
     <div class="recipe-info"><div class="recipe-name">${escHtml(r.name)}</div><div class="recipe-items">${Math.round(t.cal)} kcal · P:${fmtG(t.pro)} · C:${fmtG(t.carb)} · F:${fmtG(t.fat)}</div></div>
-    <button class="btn btn-sm btn-primary" onclick="logRecipeDirect(${i})">Log</button>
+    <button class="btn btn-sm btn-primary" onclick="logRecipeDirect(${i})">Log Portion</button>
   </div>`;}).join('');
 }
 function logRecipeDirect(i){
-  const r=recipes[i],t=calcTotals(r.ingredients||[]),meal=document.getElementById('logMealSelect').value;
-  addEntry({name:r.name,serving:'1 serving',meal,cal:t.cal,pro:t.pro,carb:t.carb,fat:t.fat});
-  toast('Recipe logged to '+meal+' ✓');showPage('dashboard');
+  // Open a portion modal instead of logging directly
+  const r=recipes[i], t=calcTotals(r.ingredients||[]);
+  pendingRecipeIdx=i;
+  document.getElementById('recipeQtyTitle').textContent=r.name;
+  document.getElementById('recipeQtyInfo').innerHTML=`
+    <div class="product-confirm">
+      <div class="pc-name">${escHtml(r.name)}</div>
+      <div class="pc-brand">${r.ingredients.length} ingredients — full recipe below</div>
+      <div class="macro-chips">
+        <span class="macro-chip chip-cal">${Math.round(t.cal)} kcal (full)</span>
+        <span class="macro-chip chip-pro">P ${fmtG(t.pro)}</span>
+        <span class="macro-chip chip-carb">C ${fmtG(t.carb)}</span>
+        <span class="macro-chip chip-fat">F ${fmtG(t.fat)}</span>
+      </div>
+    </div>`;
+  document.getElementById('recipeQtyInput').value=100;
+  updateRecipeQtyPreview();
+  openModal('recipeQtyModal');
+}
+let pendingRecipeIdx=null;
+function updateRecipeQtyPreview(){
+  if(pendingRecipeIdx===null) return;
+  const r=recipes[pendingRecipeIdx], t=calcTotals(r.ingredients||[]);
+  const pct=+document.getElementById('recipeQtyInput').value/100;
+  document.getElementById('recipeQtyPreview').innerHTML=
+    `Preview (${Math.round(pct*100)}%): <strong>${Math.round(t.cal*pct)} kcal</strong> &nbsp;|&nbsp; P:${fmtG(t.pro*pct)} C:${fmtG(t.carb*pct)} F:${fmtG(t.fat*pct)}`;
+}
+function confirmRecipeLog(){
+  if(pendingRecipeIdx===null) return;
+  const r=recipes[pendingRecipeIdx], t=calcTotals(r.ingredients||[]);
+  const pct=+document.getElementById('recipeQtyInput').value/100;
+  const meal=document.getElementById('logMealSelect').value;
+  const portion=Math.round(pct*100);
+  addEntry({name:r.name+(portion!==100?` (${portion}%)`:''), serving:`${portion}% of recipe`, meal,
+    cal:t.cal*pct, pro:t.pro*pct, carb:t.carb*pct, fat:t.fat*pct});
+  closeModal('recipeQtyModal');
+  pendingRecipeIdx=null;
+  toast('Recipe logged to '+meal+' ✓');
+  showPage('dashboard');
 }
 function quickLogRecipe(i){document.getElementById('logMealSelect').value='Breakfast';showPage('log');switchLogTab('recipe');}
 
@@ -1051,6 +1162,11 @@ function toggleHistoryDay(date){
   expandedHistoryDays[date]=!expandedHistoryDays[date];
   renderHistory();
 }
+function goToDate(date){
+  activeLogDate=date;
+  activeMode=localStorage.getItem('nl_mode_'+date)||([0,6].includes(new Date(date+'T12:00:00').getDay())?'weekend':'weekday');
+  showPage('dashboard');
+}
 
 function renderHistory(){
   const list=document.getElementById('historyList'),dates=Object.keys(dailyLogs).sort((a,b)=>b.localeCompare(a));
@@ -1092,6 +1208,7 @@ function renderHistory(){
             <div class="history-macro" style="color:var(--text3)">${entries.length} item${entries.length!==1?'s':''}</div>
           </div>
         </div>
+        <button onclick="event.stopPropagation();goToDate('${d}')" class="btn btn-sm btn-secondary" style="margin-right:6px;flex-shrink:0">Edit</button>
         <div class="history-day-chevron ${expanded?'open':''}">▼</div>
       </div>
       ${expanded?`<div class="history-day-body">${bodyHTML||'<div style="padding:12px 14px;font-size:12px;color:var(--text3)">No entries</div>'}</div>`:''}
@@ -1137,7 +1254,7 @@ function renderSettings(){
     <div class="setting-row"><span class="setting-label">Carbs</span><span class="setting-val">${we.carb} g</span></div>
     <div class="setting-row"><span class="setting-label">Fat</span><span class="setting-val">${we.fat} g</span></div>`;
 }
-function clearToday(){if(!confirm("Clear today's log?"))return;delete dailyLogs[TODAY];saveLogs();toast("Today's log cleared");renderDashboard();}
+function clearToday(){if(!confirm("Clear this day's log?"))return;delete dailyLogs[activeLogDate];saveLogs();toast("Log cleared");renderDashboard();}
 function clearAll(){if(!confirm('Clear ALL data? This cannot be undone!'))return;localStorage.clear();location.reload();}
 
 // ── EXPORT ──
