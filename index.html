@@ -529,9 +529,9 @@ let currentIngredients=[];
 
 function tgt(){return allTargets[activeMode];}
 function todayLog(){if(!dailyLogs[TODAY])dailyLogs[TODAY]=[];return dailyLogs[TODAY];}
-function saveLogs(){localStorage.setItem('nl_logs',JSON.stringify(dailyLogs));}
-function saveRecipes(){localStorage.setItem('nl_recipes',JSON.stringify(recipes));}
-function saveAllTargets(){localStorage.setItem('nl_targets_v2',JSON.stringify(allTargets));}
+function saveLogs(){localStorage.setItem('nl_logs',JSON.stringify(dailyLogs));pushLogs();}
+function saveRecipes(){localStorage.setItem('nl_recipes',JSON.stringify(recipes));pushRecipes();}
+function saveAllTargets(){localStorage.setItem('nl_targets_v2',JSON.stringify(allTargets));pushTargets();}
 
 function setTargetMode(mode){
   activeMode=mode;
@@ -1340,16 +1340,6 @@ async function pushTargets(){
   try { await sb.from('nl_targets').upsert({user_id:uid, targets:allTargets}, {onConflict:'user_id'}); }
   catch(e){ console.warn('Push targets failed:', e); }
 }
-
-// Patch save functions to also push to Supabase
-const _saveLogs0 = saveLogs;
-saveLogs = function(){ localStorage.setItem('nl_logs', JSON.stringify(dailyLogs)); pushLogs(); };
-
-const _saveRecipes0 = saveRecipes;
-saveRecipes = function(){ localStorage.setItem('nl_recipes', JSON.stringify(recipes)); pushRecipes(); };
-
-const _saveAllTargets0 = saveAllTargets;
-saveAllTargets = function(){ localStorage.setItem('nl_targets_v2', JSON.stringify(allTargets)); pushTargets(); };
 
 // ── SETTINGS: sync status ──
 function renderSyncStatus(){
