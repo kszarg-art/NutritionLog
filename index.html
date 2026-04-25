@@ -1045,7 +1045,18 @@ function renderHistory(){
 }
 
 // ── SETTINGS ──
-function switchSettingsTargetTab(mode){
+function saveTargets(){
+  allTargets[settingsEditMode]={
+    cal:+document.getElementById('setCalTarget').value||0,
+    pro:+document.getElementById('setProTarget').value||0,
+    carb:+document.getElementById('setCarbTarget').value||0,
+    fat:+document.getElementById('setFatTarget').value||0
+  };
+  saveAllTargets();
+  toast((settingsEditMode==='weekday'?'Weekday':'Weekend')+' targets saved ✓');
+  renderSettings();
+  renderDashboard();
+}
   allTargets[settingsEditMode]={cal:+document.getElementById('setCalTarget').value||0,pro:+document.getElementById('setProTarget').value||0,carb:+document.getElementById('setCarbTarget').value||0,fat:+document.getElementById('setFatTarget').value||0};
   settingsEditMode=mode;
   document.getElementById('settingsTabWeekday').classList.toggle('active',mode==='weekday');
