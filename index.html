@@ -182,7 +182,20 @@ select.form-input{cursor:pointer}
 .day-total-macro{text-align:center}
 .day-total-val{font-size:15px;font-weight:700;font-family:'DM Mono',monospace}
 .day-total-unit{font-size:10px;color:var(--text3);display:block}
-.export-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.notes-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+.notes-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.notes-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)}
+.notes-save-btn{font-size:11px;font-weight:600;color:var(--cal);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:6px;font-family:'DM Sans',sans-serif}
+.notes-save-btn:hover{background:var(--cal-dim)}
+.notes-textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;resize:none;outline:none;line-height:1.6;transition:border-color .2s;min-height:72px}
+.notes-textarea:focus{border-color:var(--cal)}
+.notes-textarea::placeholder{color:var(--text3)}
+.export-day-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.export-day-row:last-child{border-bottom:none}
+.export-day-row:hover{background:var(--surface)}
+.export-day-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--cal);cursor:pointer;flex-shrink:0}
+.export-day-name{font-size:13px;font-weight:500;flex:1}
+.export-day-meta{font-size:11px;color:var(--text2);font-family:'DM Mono',monospace}
 .export-btn{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 12px;text-align:center;cursor:pointer;transition:border-color .2s}
 .export-btn:hover{border-color:var(--pro)}
 .export-btn svg{margin:0 auto 8px;display:block;color:var(--pro)}
@@ -295,6 +308,13 @@ details summary::-webkit-details-marker{display:none}
   </div>
   <div class="rings-grid" id="ringsGrid"></div>
   <div class="day-total" id="dayTotal"></div>
+  <div class="notes-section">
+    <div class="notes-header">
+      <span class="notes-label">📝 Day Notes</span>
+      <button class="notes-save-btn" onclick="saveNote()">Save</button>
+    </div>
+    <textarea class="notes-textarea" id="dayNoteInput" placeholder="How are you feeling? Any observations about today's eating…" rows="3"></textarea>
+  </div>
   <div id="mealSections"></div>
 </div>
 
@@ -487,29 +507,53 @@ details summary::-webkit-details-marker{display:none}
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">Export & Reports</div>
-    <div class="export-grid">
-      <div class="export-btn" onclick="exportCSV()">
-        <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        <div class="eb-title">CSV Export</div><div class="eb-desc">All logged days</div>
+
+    <!-- Date range selector — shared by all exports -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px">
+      <div class="form-label" style="margin-bottom:10px">Date Range</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="exportQuickBtns">
+        <button class="btn btn-sm btn-secondary" onclick="setExportRange(7)">7 days</button>
+        <button class="btn btn-sm btn-secondary" onclick="setExportRange(14)">14 days</button>
+        <button class="btn btn-sm btn-secondary" onclick="setExportRange(30)">30 days</button>
+        <button class="btn btn-sm btn-secondary" onclick="setExportRangeAll()">All time</button>
       </div>
-      <div class="export-btn" onclick="showPDFRange()">
-        <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-        <div class="eb-title">PDF Report</div><div class="eb-desc">Select date range</div>
+      <div class="form-row">
+        <div><label class="form-label">From</label><input type="date" class="form-input" id="exportFrom" onchange="updateExportDayCount()"></div>
+        <div><label class="form-label">To</label><input type="date" class="form-input" id="exportTo" onchange="updateExportDayCount()"></div>
+      </div>
+      <div id="exportDayCount" style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center"></div>
+    </div>
+
+    <!-- Day picker (scrollable checklist) -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="form-label" style="margin:0">Select Days to Include</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="toggleAllExportDays(true)" style="font-size:11px;color:var(--cal);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">All</button>
+          <button onclick="toggleAllExportDays(false)" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">None</button>
+        </div>
+      </div>
+      <div id="exportDayList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)"></div>
+    </div>
+
+    <!-- Export buttons -->
+    <div class="export-grid" style="margin-bottom:10px">
+      <div class="export-btn" onclick="exportCSV()">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <div class="eb-title">CSV</div><div class="eb-desc">Spreadsheet</div>
+      </div>
+      <div class="export-btn" onclick="exportPDF()">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        <div class="eb-title">PDF</div><div class="eb-desc">Report</div>
       </div>
     </div>
     <div class="export-btn" onclick="generateWeeklySummary()" style="margin-bottom:12px">
-      <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 6px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      <div class="eb-title">Weekly Summary</div><div class="eb-desc">7-day averages for nutritionist</div>
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 4px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <div class="eb-title">Weekly Summary</div><div class="eb-desc">Copy text for nutritionist</div>
     </div>
     <div id="weeklySummaryBox" style="display:none">
       <div class="weekly-box" id="weeklySummaryText"></div>
       <button class="btn btn-secondary btn-full" onclick="copyWeekly()">Copy to Clipboard</button>
-    </div>
-    <div id="pdfRangeBox" style="display:none;margin-top:10px">
-      <div class="form-group"><label class="form-label">Date Range</label>
-        <div class="form-row"><input type="date" class="form-input" id="pdfFrom"><input type="date" class="form-input" id="pdfTo"></div>
-      </div>
-      <button class="btn btn-primary btn-full" onclick="exportPDF()">Generate PDF</button>
     </div>
   </div>
 </div>
@@ -564,6 +608,7 @@ let activeMode=localStorage.getItem('nl_mode_'+TODAY)||(IS_WEEKEND?'weekend':'we
 let activeLogDate=TODAY; // which date we're viewing/logging to
 let settingsEditMode='weekday';
 let dailyLogs=JSON.parse(localStorage.getItem('nl_logs')||'{}');
+let dailyNotes=JSON.parse(localStorage.getItem('nl_notes')||'{}');
 let recipes=JSON.parse(localStorage.getItem('nl_recipes')||'[]');
 let pendingProduct=null,pendingUnit='serving';
 let pendingIngProduct=null,pendingIngUnit='serving';
@@ -574,6 +619,7 @@ let currentIngredients=[];
 function tgt(){return allTargets[activeMode];}
 function todayLog(){if(!dailyLogs[activeLogDate])dailyLogs[activeLogDate]=[];return dailyLogs[activeLogDate];}
 function saveLogs(){localStorage.setItem('nl_logs',JSON.stringify(dailyLogs));pushLogs();}
+function saveNotes(){localStorage.setItem('nl_notes',JSON.stringify(dailyNotes));pushNotes();}
 function saveRecipes(){localStorage.setItem('nl_recipes',JSON.stringify(recipes));pushRecipes();}
 function saveAllTargets(){localStorage.setItem('nl_targets_v2',JSON.stringify(allTargets));pushTargets();}
 
@@ -683,6 +729,9 @@ function renderDashboard(){
       <div class="day-total-macro"><div class="day-total-val" style="color:var(--carb)">${Math.round(totals.carb)}g</div><span class="day-total-unit">carbs</span></div>
       <div class="day-total-macro"><div class="day-total-val" style="color:var(--fat)">${Math.round(totals.fat)}g</div><span class="day-total-unit">fat</span></div>
     </div>`;
+  // Load note for this date
+  const noteEl=document.getElementById('dayNoteInput');
+  if(noteEl) noteEl.value=dailyNotes[activeLogDate]||'';
   document.getElementById('mealSections').innerHTML=MEALS.map(meal=>{
     const entries=log.filter(e=>e.meal===meal),mt=calcTotals(entries),expanded=expandedMeals[meal];
     const body=entries.length?entries.map(e=>{
@@ -709,6 +758,14 @@ function fmtG(v){return(Math.round((v||0)*10)/10)+'g';}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function deleteEntry(idx){dailyLogs[activeLogDate].splice(idx,1);saveLogs();renderDashboard();toast('Entry removed');}
 function openLogForMeal(meal){document.getElementById('logMealSelect').value=meal;showPage('log');}
+
+function saveNote(){
+  const val=document.getElementById('dayNoteInput').value.trim();
+  if(val) dailyNotes[activeLogDate]=val;
+  else delete dailyNotes[activeLogDate];
+  saveNotes();
+  toast('Note saved ✓');
+}
 
 // ── OPEN FOOD FACTS API (English results) ──
 async function offFetch(url, timeout=9000){
@@ -1195,6 +1252,8 @@ function renderHistory(){
             </div>
           </div>`).join('')}
       </div>`).join('');
+    const note=dailyNotes[d];
+    const noteHTML=note?`<div style="padding:10px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text2);line-height:1.6"><span style="font-weight:600;color:var(--text3)">📝 Note:</span> ${escHtml(note)}</div>`:'';
 
     return `<div class="history-day">
       <div class="history-day-header" onclick="toggleHistoryDay('${d}')">
@@ -1211,7 +1270,7 @@ function renderHistory(){
         <button onclick="event.stopPropagation();goToDate('${d}')" class="btn btn-sm btn-secondary" style="margin-right:6px;flex-shrink:0">Edit</button>
         <div class="history-day-chevron ${expanded?'open':''}">▼</div>
       </div>
-      ${expanded?`<div class="history-day-body">${bodyHTML||'<div style="padding:12px 14px;font-size:12px;color:var(--text3)">No entries</div>'}</div>`:''}
+      ${expanded?`<div class="history-day-body">${bodyHTML}${noteHTML||'<div style="padding:12px 14px;font-size:12px;color:var(--text3)">No entries</div>'}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -1258,34 +1317,81 @@ function clearToday(){if(!confirm("Clear this day's log?"))return;delete dailyLo
 function clearAll(){if(!confirm('Clear ALL data? This cannot be undone!'))return;localStorage.clear();location.reload();}
 
 // ── EXPORT ──
-function openExportModal(){document.getElementById('weeklySummaryBox').style.display='none';document.getElementById('pdfRangeBox').style.display='none';openModal('exportModal');}
-function showPDFRange(){const w=new Date();w.setDate(w.getDate()-6);document.getElementById('pdfFrom').value=w.toISOString().split('T')[0];document.getElementById('pdfTo').value=TODAY;document.getElementById('pdfRangeBox').style.display='block';}
+function openExportModal(){
+  document.getElementById('weeklySummaryBox').style.display='none';
+  setExportRange(7);
+  openModal('exportModal');
+}
+function setExportRange(days){
+  const to=new Date(TODAY+'T12:00:00');
+  const from=new Date(to);from.setDate(from.getDate()-(days-1));
+  document.getElementById('exportFrom').value=from.toISOString().split('T')[0];
+  document.getElementById('exportTo').value=TODAY;
+  renderExportDayList();
+}
+function setExportRangeAll(){
+  const dates=Object.keys(dailyLogs).sort();
+  if(!dates.length){toast('No logged days yet');return;}
+  document.getElementById('exportFrom').value=dates[0];
+  document.getElementById('exportTo').value=TODAY;
+  renderExportDayList();
+}
+function updateExportDayCount(){renderExportDayList();}
+function renderExportDayList(){
+  const from=document.getElementById('exportFrom').value;
+  const to=document.getElementById('exportTo').value;
+  if(!from||!to||from>to){
+    document.getElementById('exportDayList').innerHTML='<div style="padding:12px;font-size:12px;color:var(--text3)">Select a valid date range above.</div>';
+    document.getElementById('exportDayCount').textContent='';return;
+  }
+  const days=[];
+  const cur=new Date(from+'T12:00:00'),end=new Date(to+'T12:00:00');
+  while(cur<=end){days.push(cur.toISOString().split('T')[0]);cur.setDate(cur.getDate()+1);}
+  document.getElementById('exportDayCount').textContent=`${days.length} day${days.length!==1?'s':''} in range`;
+  document.getElementById('exportDayList').innerHTML=days.reverse().map(d=>{
+    const entries=dailyLogs[d]||[],t=calcTotals(entries);
+    const date=new Date(d+'T12:00:00');
+    const label=date.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+    const hasData=entries.length>0;
+    const note=dailyNotes[d]?'📝 ':'';
+    return `<label class="export-day-row"><input type="checkbox" class="export-day-cb" value="${d}" ${hasData?'checked':''}><div class="export-day-name">${note}${label}</div><div class="export-day-meta">${hasData?Math.round(t.cal)+' kcal · '+entries.length+' items':'no data'}</div></label>`;
+  }).join('');
+}
+function getSelectedExportDates(){
+  const checked=[...document.querySelectorAll('.export-day-cb:checked')].map(cb=>cb.value);
+  if(!checked.length){toast('Select at least one day');return null;}
+  return checked.sort();
+}
+function toggleAllExportDays(on){document.querySelectorAll('.export-day-cb').forEach(cb=>cb.checked=on);}
 function exportCSV(){
-  const rows=[['Date','Day','Meal','Food Name','Serving','Time','Calories (kcal)','kJ','Protein (g)','Carbs (g)','Fat (g)']];
-  Object.keys(dailyLogs).sort().forEach(d=>{
+  const dates=getSelectedExportDates();if(!dates)return;
+  const rows=[['Date','Day','Meal','Food Name','Serving','Time','Calories (kcal)','kJ','Protein (g)','Carbs (g)','Fat (g)','Day Notes']];
+  dates.forEach(d=>{
     const date=new Date(d+'T12:00:00');
     const day=date.toLocaleDateString('en-AU',{weekday:'long'});
     const entries=dailyLogs[d]||[];
-    entries.forEach(e=>rows.push([d,day,e.meal,e.name,e.serving||'',e.time||'',Math.round(e.cal||0),Math.round((e.cal||0)*4.184),(e.pro||0).toFixed(1),(e.carb||0).toFixed(1),(e.fat||0).toFixed(1)]));
-    if(entries.length){
+    const note=dailyNotes[d]||'';
+    if(!entries.length){rows.push([d,day,'','','','','','','','','',note]);}
+    else{
+      entries.forEach((e,i)=>rows.push([d,day,e.meal,e.name,e.serving||'',e.time||'',Math.round(e.cal||0),Math.round((e.cal||0)*4.184),(e.pro||0).toFixed(1),(e.carb||0).toFixed(1),(e.fat||0).toFixed(1),i===0?note:'']));
       const t=calcTotals(entries);
-      rows.push([d,day,'— DAY TOTAL —','','','',Math.round(t.cal),Math.round(t.cal*4.184),t.pro.toFixed(1),t.carb.toFixed(1),t.fat.toFixed(1)]);
-      rows.push([]);
+      rows.push([d,day,'— DAY TOTAL —','','','',Math.round(t.cal),Math.round(t.cal*4.184),t.pro.toFixed(1),t.carb.toFixed(1),t.fat.toFixed(1),'']);
     }
+    rows.push([]);
   });
   const csv=rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='nutrilog-export.csv';a.click();toast('CSV downloaded ✓');
 }
 function exportPDF(){
-  const from=document.getElementById('pdfFrom').value,to=document.getElementById('pdfTo').value;
-  if(!from||!to)return toast('Select a date range');
+  const dates=getSelectedExportDates();if(!dates)return;
   const {jsPDF}=window.jspdf,doc=new jsPDF();
+  const fromDate=new Date(dates[0]+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
+  const toDate=new Date(dates[dates.length-1]+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
   doc.setFont('helvetica','bold');doc.setFontSize(18);doc.text('NutriLog Report',14,18);
   doc.setFont('helvetica','normal');doc.setFontSize(10);
-  doc.text(`${new Date(from+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'})} to ${new Date(to+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'})}`,14,26);
+  doc.text(`${fromDate} – ${toDate} · ${dates.length} day${dates.length!==1?'s':''}`,14,26);
   doc.setDrawColor(232,131,106);doc.setLineWidth(0.5);doc.line(14,29,196,29);
   let y=36;
-  const dates=Object.keys(dailyLogs).filter(d=>d>=from&&d<=to).sort();
   dates.forEach(d=>{
     const entries=dailyLogs[d]||[],t=calcTotals(entries);
     const dateStr=new Date(d+'T12:00:00').toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -1297,52 +1403,53 @@ function exportPDF(){
     doc.setTextColor(0,0,0);y+=12;
     if(!entries.length){
       doc.setFont('helvetica','italic');doc.setFontSize(9);doc.setTextColor(150,150,150);
-      doc.text('No entries logged',16,y);doc.setTextColor(0,0,0);y+=8;return;
-    }
-    MEALS.forEach(meal=>{
-      const me=entries.filter(e=>e.meal===meal);if(!me.length)return;
-      const mt=calcTotals(me);
-      if(y>255){doc.addPage();y=20;}
-      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(120,80,60);
-      doc.text(`${meal}  —  ${Math.round(mt.cal)} kcal  P:${fmtG(mt.pro)} C:${fmtG(mt.carb)} F:${fmtG(mt.fat)}`,16,y);
-      doc.setTextColor(0,0,0);y+=2;
-      doc.autoTable({
-        startY:y,
-        head:[['Food','Serving','Time','kcal','kJ','P (g)','C (g)','F (g)']],
-        body:me.map(e=>[e.name,e.serving||'',e.time||'',Math.round(e.cal||0),Math.round((e.cal||0)*4.184),(e.pro||0).toFixed(1),(e.carb||0).toFixed(1),(e.fat||0).toFixed(1)]),
-        styles:{fontSize:8,cellPadding:2},
-        headStyles:{fillColor:[240,215,205],textColor:[80,40,20],fontStyle:'bold'},
-        columnStyles:{0:{cellWidth:54},1:{cellWidth:28},2:{cellWidth:16},3:{cellWidth:16},4:{cellWidth:16},5:{cellWidth:16},6:{cellWidth:16},7:{cellWidth:16}},
-        margin:{left:14,right:14},theme:'striped',
-        alternateRowStyles:{fillColor:[252,248,245]},
+      doc.text('No entries logged',16,y);doc.setTextColor(0,0,0);y+=8;
+    } else {
+      MEALS.forEach(meal=>{
+        const me=entries.filter(e=>e.meal===meal);if(!me.length)return;
+        const mt=calcTotals(me);
+        if(y>255){doc.addPage();y=20;}
+        doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(120,80,60);
+        doc.text(`${meal}  —  ${Math.round(mt.cal)} kcal  P:${fmtG(mt.pro)} C:${fmtG(mt.carb)} F:${fmtG(mt.fat)}`,16,y);
+        doc.setTextColor(0,0,0);y+=2;
+        doc.autoTable({startY:y,head:[['Food','Serving','Time','kcal','kJ','P (g)','C (g)','F (g)']],
+          body:me.map(e=>[e.name,e.serving||'',e.time||'',Math.round(e.cal||0),Math.round((e.cal||0)*4.184),(e.pro||0).toFixed(1),(e.carb||0).toFixed(1),(e.fat||0).toFixed(1)]),
+          styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[240,215,205],textColor:[80,40,20],fontStyle:'bold'},
+          columnStyles:{0:{cellWidth:54},1:{cellWidth:28},2:{cellWidth:16},3:{cellWidth:16},4:{cellWidth:16},5:{cellWidth:16},6:{cellWidth:16},7:{cellWidth:16}},
+          margin:{left:14,right:14},theme:'striped',alternateRowStyles:{fillColor:[252,248,245]}});
+        y=doc.lastAutoTable.finalY+6;
       });
-      y=doc.lastAutoTable.finalY+6;
-    });
+    }
+    const note=dailyNotes[d];
+    if(note){
+      if(y>265){doc.addPage();y=20;}
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(120,80,60);doc.text('Notes:',16,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
+      const noteLines=doc.splitTextToSize(note,168);doc.text(noteLines,30,y);
+      y+=noteLines.length*5+4;doc.setTextColor(0,0,0);
+    }
     y+=4;
   });
   if(dates.length>1){
     doc.addPage();
     doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('Daily Summary',14,20);
     doc.setDrawColor(232,131,106);doc.line(14,23,196,23);
-    doc.autoTable({
-      startY:28,
-      head:[['Date','kcal','kJ','Protein','Carbs','Fat','Items']],
-      body:dates.map(d=>{const entries=dailyLogs[d]||[],t=calcTotals(entries);return[new Date(d+'T12:00:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'}),Math.round(t.cal),Math.round(t.cal*4.184),fmtG(t.pro),fmtG(t.carb),fmtG(t.fat),entries.length];}),
-      styles:{fontSize:9,cellPadding:3},
-      headStyles:{fillColor:[232,131,106],textColor:[255,255,255]},
-      margin:{left:14,right:14},theme:'striped',
-    });
+    doc.autoTable({startY:28,head:[['Date','kcal','kJ','Protein','Carbs','Fat','Items','Notes']],
+      body:dates.map(d=>{const entries=dailyLogs[d]||[],t=calcTotals(entries);
+        return[new Date(d+'T12:00:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'}),Math.round(t.cal),Math.round(t.cal*4.184),fmtG(t.pro),fmtG(t.carb),fmtG(t.fat),entries.length,dailyNotes[d]||''];}),
+      styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[232,131,106],textColor:[255,255,255]},
+      columnStyles:{7:{cellWidth:50}},margin:{left:14,right:14},theme:'striped'});
   }
-  doc.save(`nutrilog-report-${from}-${to}.pdf`);toast('PDF downloaded ✓');
+  doc.save(`nutrilog-report-${dates[0]}-${dates[dates.length-1]}.pdf`);toast('PDF downloaded ✓');
 }
 function generateWeeklySummary(){
+  const dates=getSelectedExportDates();if(!dates)return;
   document.getElementById('weeklySummaryBox').style.display='block';
-  const end=new Date(),start=new Date();start.setDate(end.getDate()-6);
-  const lines=['NutriLog — Weekly Summary','═'.repeat(52),''];
-  let totals={cal:0,pro:0,carb:0,fat:0};
-  for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
-    const key=d.toISOString().split('T')[0],entries=dailyLogs[key]||[],t=calcTotals(entries);
-    const label=d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
+  const lines=['NutriLog — Summary Report','═'.repeat(52),''];
+  let totals={cal:0,pro:0,carb:0,fat:0},count=0;
+  dates.forEach(d=>{
+    const entries=dailyLogs[d]||[],t=calcTotals(entries);
+    const label=new Date(d+'T12:00:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
     lines.push(`${label.padEnd(14)} ${String(Math.round(t.cal)).padStart(5)} kcal  P:${String(Math.round(t.pro)).padStart(4)}g  C:${String(Math.round(t.carb)).padStart(4)}g  F:${String(Math.round(t.fat)).padStart(4)}g`);
     if(entries.length){
       MEALS.forEach(meal=>{
@@ -1351,11 +1458,15 @@ function generateWeeklySummary(){
         me.forEach(e=>lines.push(`    · ${e.name}${e.serving?' ('+e.serving+')':''} — ${Math.round(e.cal||0)} kcal  P:${fmtG(e.pro)} C:${fmtG(e.carb)} F:${fmtG(e.fat)}`));
       });
     }
+    const note=dailyNotes[d];if(note)lines.push(`  📝 ${note}`);
     lines.push('');
-    totals.cal+=t.cal;totals.pro+=t.pro;totals.carb+=t.carb;totals.fat+=t.fat;
-  }
+    totals.cal+=t.cal;totals.pro+=t.pro;totals.carb+=t.carb;totals.fat+=t.fat;count++;
+  });
   lines.push('─'.repeat(52));
-  lines.push(`${'7-Day Avg'.padEnd(14)} ${String(Math.round(totals.cal/7)).padStart(5)} kcal  P:${String(Math.round(totals.pro/7)).padStart(4)}g  C:${String(Math.round(totals.carb/7)).padStart(4)}g  F:${String(Math.round(totals.fat/7)).padStart(4)}g`);
+  if(count>0){
+    lines.push(`${'Average'.padEnd(14)} ${String(Math.round(totals.cal/count)).padStart(5)} kcal  P:${String(Math.round(totals.pro/count)).padStart(4)}g  C:${String(Math.round(totals.carb/count)).padStart(4)}g  F:${String(Math.round(totals.fat/count)).padStart(4)}g`);
+    lines.push(`${'Total'.padEnd(14)} ${String(Math.round(totals.cal)).padStart(5)} kcal  P:${String(Math.round(totals.pro)).padStart(4)}g  C:${String(Math.round(totals.carb)).padStart(4)}g  F:${String(Math.round(totals.fat)).padStart(4)}g`);
+  }
   lines.push('');
   lines.push(`Weekday targets: Cal ${allTargets.weekday.cal} | P ${allTargets.weekday.pro}g | C ${allTargets.weekday.carb}g | F ${allTargets.weekday.fat}g`);
   lines.push(`Weekend targets: Cal ${allTargets.weekend.cal} | P ${allTargets.weekend.pro}g | C ${allTargets.weekend.carb}g | F ${allTargets.weekend.fat}g`);
@@ -1484,6 +1595,13 @@ async function pullFromSupabase(){
       localStorage.setItem('nl_logs', JSON.stringify(dailyLogs));
     }
 
+    // Pull notes
+    const {data:noteRows} = await sb.from('nl_notes').select('notes').eq('user_id',uid).single();
+    if(noteRows) {
+      dailyNotes = noteRows.notes||{};
+      localStorage.setItem('nl_notes', JSON.stringify(dailyNotes));
+    }
+
     // Pull recipes
     const {data:recRows} = await sb.from('nl_recipes').select('recipes').eq('user_id',uid).single();
     if(recRows) {
@@ -1518,6 +1636,12 @@ async function pushRecipes(){
   catch(e){ console.warn('Push recipes failed:', e); }
 }
 
+async function pushNotes(){
+  if(!sb||!currentUser) return;
+  const uid=currentUser.id;
+  try { await sb.from('nl_notes').upsert({user_id:uid, notes:dailyNotes}, {onConflict:'user_id'}); }
+  catch(e){ console.warn('Push notes failed:', e); }
+}
 async function pushTargets(){
   if(!sb||!currentUser) return;
   const uid=currentUser.id;
