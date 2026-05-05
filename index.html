@@ -636,6 +636,25 @@ details summary::-webkit-details-marker{display:none}
   </div>
 </div>
 
+<!-- RELOG MODAL -->
+<div class="modal-overlay" id="relogModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="relogTitle">Log Again</div>
+    <div id="relogInfo"></div>
+    <div class="form-group" style="margin-top:8px">
+      <label class="form-label">How much? (%)</label>
+      <input type="number" class="form-input" id="relogQtyInput" value="100" min="1" max="500" oninput="updateRelogPreview()">
+      <div class="form-hint">100% = same amount as before · 50% = half · 200% = double</div>
+    </div>
+    <div class="form-hint" id="relogPreview" style="font-size:13px;margin-top:4px;color:var(--text)"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('relogModal')">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" onclick="confirmRelogFood()">Log</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1239,8 +1258,48 @@ function renderRecentFoods(){
 
 function relogFood(i){
   const e=window._recentFoods[i];
+  pendingRelogEntry=e;
+  document.getElementById('relogTitle').textContent=escHtml(e.name);
+  document.getElementById('relogInfo').innerHTML=`
+    <div class="product-confirm">
+      <div class="pc-name">${escHtml(e.name)}</div>
+      <div class="pc-brand">${escHtml(e.serving||'')} · originally logged to ${e.meal}</div>
+      <div class="macro-chips">
+        <span class="macro-chip chip-cal">${Math.round(e.cal||0)} kcal (original)</span>
+        <span class="macro-chip chip-pro">P ${fmtG(e.pro)}</span>
+        <span class="macro-chip chip-carb">C ${fmtG(e.carb)}</span>
+        <span class="macro-chip chip-fat">F ${fmtG(e.fat)}</span>
+      </div>
+    </div>`;
+  document.getElementById('relogQtyInput').value=100;
+  updateRelogPreview();
+  openModal('relogModal');
+}
+
+let pendingRelogEntry=null;
+
+function updateRelogPreview(){
+  if(!pendingRelogEntry)return;
+  const e=pendingRelogEntry;
+  const pct=+document.getElementById('relogQtyInput').value/100;
+  document.getElementById('relogPreview').innerHTML=
+    `Preview (${Math.round(pct*100)}%): <strong>${Math.round((e.cal||0)*pct)} kcal</strong> &nbsp;|&nbsp; P:${fmtG((e.pro||0)*pct)} C:${fmtG((e.carb||0)*pct)} F:${fmtG((e.fat||0)*pct)}`;
+}
+
+function confirmRelogFood(){
+  if(!pendingRelogEntry)return;
+  const e=pendingRelogEntry;
+  const pct=+document.getElementById('relogQtyInput').value/100;
   const meal=document.getElementById('logMealSelect').value;
-  addEntry({name:e.name, serving:e.serving||'', meal, cal:e.cal, pro:e.pro, carb:e.carb, fat:e.fat});
+  const portion=Math.round(pct*100);
+  addEntry({
+    name:e.name+(portion!==100?` (${portion}%)`:''),
+    serving:portion===100?(e.serving||''):`${portion}% of ${e.serving||'serving'}`,
+    meal, cal:(e.cal||0)*pct, pro:(e.pro||0)*pct,
+    carb:(e.carb||0)*pct, fat:(e.fat||0)*pct
+  });
+  closeModal('relogModal');
+  pendingRelogEntry=null;
   toast(`${e.name} logged to ${meal} ✓`);
   showPage('dashboard');
 }
