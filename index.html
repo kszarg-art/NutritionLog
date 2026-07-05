@@ -190,6 +190,11 @@ select.form-input{cursor:pointer}
 .sri-brand{font-size:11px;color:var(--text2)}
 .sri-macros{margin-left:auto;text-align:right;font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;flex-shrink:0;padding-left:10px}
 .sri-cal{font-size:14px;font-weight:700;color:var(--cal)}
+.sri-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);flex-shrink:0;margin-right:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:transparent;background:var(--surface);transition:all .15s}
+.search-result-item.selected{border-color:var(--cal);background:var(--cal-dim)}
+.search-result-item.selected .sri-check{background:var(--cal);border-color:var(--cal);color:#fff}
+.multi-select-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface2);border:1px solid var(--cal);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px}
+.multi-select-bar .multi-count{font-size:12px;font-weight:600;color:var(--cal)}
 .product-confirm{background:var(--surface2);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px}
 .pc-name{font-size:15px;font-weight:600;margin-bottom:4px}
 .pc-brand{font-size:12px;color:var(--text2);margin-bottom:10px}
@@ -252,6 +257,16 @@ select.form-input{cursor:pointer}
 .export-day-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--cal);cursor:pointer;flex-shrink:0}
 .export-day-name{font-size:13px;font-weight:500;flex:1}
 .export-day-meta{font-size:11px;color:var(--text2);font-family:'DM Mono',monospace}
+.copy-day-row{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.copy-day-row:last-child{border-bottom:none}
+.copy-day-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--cal);cursor:pointer;flex-shrink:0}
+.cdr-info{flex:1;min-width:0}
+.cdr-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cdr-meta{font-size:11px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cdr-portion{display:flex;gap:4px;flex-shrink:0}
+.cdr-portion input{width:52px;height:32px;padding:0 6px;font-size:12px;text-align:center;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'DM Mono',monospace}
+.cdr-portion select{height:32px;padding:0 2px;font-size:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.cdr-cal{font-size:12px;font-weight:600;color:var(--cal);text-align:right;min-width:58px;flex-shrink:0;font-family:'DM Mono',monospace}
 .export-btn{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 12px;text-align:center;cursor:pointer;transition:border-color .2s}
 .export-btn:hover{border-color:var(--pro)}
 .export-btn svg{margin:0 auto 8px;display:block;color:var(--pro)}
@@ -371,6 +386,9 @@ details summary::-webkit-details-marker{display:none}
     </div>
     <textarea class="notes-textarea" id="dayNoteInput" placeholder="How are you feeling? Any observations about today's eating…" rows="3"></textarea>
   </div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <button class="btn btn-sm btn-secondary" onclick="openCopyDayModal()">📋 Copy Previous Day</button>
+  </div>
   <div id="mealSections"></div>
 </div>
 
@@ -400,7 +418,14 @@ details summary::-webkit-details-marker{display:none}
     </div>
     <div id="log-search" class="log-tab-panel">
       <div class="form-group"><input type="search" class="form-input" id="foodSearch" placeholder="e.g. Greek yoghurt, chicken breast…" autocomplete="off"></div>
-      <button class="btn btn-primary btn-full" onclick="doSearch()" style="margin-bottom:12px">Search Foods</button>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-primary" style="flex:1" onclick="doSearch()">Search Foods</button>
+        <button class="btn btn-secondary" id="searchMultiBtn" onclick="toggleMultiMode('search')">☑ Select Multiple</button>
+      </div>
+      <div id="searchMultiBar" class="multi-select-bar" style="display:none">
+        <span class="multi-count">Tap items to select</span>
+        <button class="btn btn-primary btn-sm" onclick="confirmMultiAdd('search')">Add Selected</button>
+      </div>
       <div id="searchSpinner" style="display:none"><div class="spinner"></div></div>
       <div id="searchResults"></div>
     </div>
@@ -426,7 +451,16 @@ details summary::-webkit-details-marker{display:none}
       <button class="btn btn-primary btn-full" onclick="logManual()">Log Entry</button>
     </div>
     <div id="log-recipe" class="log-tab-panel" style="display:none"><div id="logRecipeList"></div></div>
-    <div id="log-recent" class="log-tab-panel" style="display:none"><div id="logRecentList"></div></div>
+    <div id="log-recent" class="log-tab-panel" style="display:none">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="btn btn-secondary btn-sm" id="recentMultiBtn" onclick="toggleMultiMode('recent')">☑ Select Multiple</button>
+      </div>
+      <div id="recentMultiBar" class="multi-select-bar" style="display:none">
+        <span class="multi-count">Tap items to select</span>
+        <button class="btn btn-primary btn-sm" onclick="confirmMultiAdd('recent')">Add Selected</button>
+      </div>
+      <div id="logRecentList"></div>
+    </div>
   </div>
 </div>
 
@@ -642,15 +676,36 @@ details summary::-webkit-details-marker{display:none}
     <div class="modal-handle"></div>
     <div class="modal-title" id="relogTitle">Log Again</div>
     <div id="relogInfo"></div>
+    <div class="unit-toggle" id="relogUnitToggle" style="margin-top:10px"></div>
     <div class="form-group" style="margin-top:8px">
-      <label class="form-label">How much? (%)</label>
-      <input type="number" class="form-input" id="relogQtyInput" value="100" min="1" max="500" oninput="updateRelogPreview()">
-      <div class="form-hint">100% = same amount as before · 50% = half · 200% = double</div>
+      <label class="form-label" id="relogQtyLabel">How much? (%)</label>
+      <input type="number" class="form-input" id="relogQtyInput" value="100" min="0" step="any" oninput="updateRelogPreview()">
+      <div class="form-hint" id="relogQtyHint">100% = same amount as before · 50% = half · 200% = double</div>
     </div>
     <div class="form-hint" id="relogPreview" style="font-size:13px;margin-top:4px;color:var(--text)"></div>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button class="btn btn-secondary" style="flex:1" onclick="closeModal('relogModal')">Cancel</button>
       <button class="btn btn-primary" style="flex:1" onclick="confirmRelogFood()">Log</button>
+    </div>
+  </div>
+</div>
+
+<!-- COPY PREVIOUS DAY MODAL -->
+<div class="modal-overlay" id="copyDayModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="copyDayTitle">Copy Previous Day</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="form-label" style="margin:0" id="copyDaySubtitle">Select items to copy</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="toggleAllCopyDay(true)" style="font-size:11px;color:var(--cal);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">All</button>
+        <button onclick="toggleAllCopyDay(false)" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif">None</button>
+      </div>
+    </div>
+    <div id="copyDayList" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('copyDayModal')">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" onclick="confirmCopyDay()">Copy Selected</button>
     </div>
   </div>
 </div>
@@ -693,6 +748,9 @@ let pendingIngProduct=null,pendingIngUnit='serving';
 let cameraStream=null,barcodeReader=null;
 let expandedMeals={'Pre-workout':true,Breakfast:true,Lunch:true,Dinner:true,Snacks:true};
 let currentIngredients=[];
+let multiSelect={search:{active:false,sel:new Set()},recent:{active:false,sel:new Set()}};
+let relogUnit='pct', relogBaseGrams=null;
+let copyDayEntries=[], copyDaySourceDate=null;
 
 function tgt(){return allTargets[activeMode];}
 function todayLog(){if(!dailyLogs[activeLogDate])dailyLogs[activeLogDate]=[];return dailyLogs[activeLogDate];}
@@ -836,6 +894,108 @@ function fmtG(v){return(Math.round((v||0)*10)/10)+'g';}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function deleteEntry(idx){dailyLogs[activeLogDate].splice(idx,1);saveLogs();renderDashboard();toast('Entry removed');}
 function openLogForMeal(meal){document.getElementById('logMealSelect').value=meal;showPage('log');}
+
+// ── COPY PREVIOUS DAY ──
+function openCopyDayModal(){
+  const d=new Date(activeLogDate+'T12:00:00');
+  d.setDate(d.getDate()-1);
+  const prevDate=d.toISOString().split('T')[0];
+  const entries=dailyLogs[prevDate]||[];
+  if(!entries.length){toast('No entries found for the previous day');return;}
+  copyDaySourceDate=prevDate;
+  copyDayEntries=entries.map(e=>({...e})); // clone so we never mutate the stored log
+  const label=d.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'short'});
+  document.getElementById('copyDayTitle').textContent='Copy from '+label;
+  document.getElementById('copyDaySubtitle').textContent=`${entries.length} item${entries.length!==1?'s':''} · adjust portions if needed`;
+  document.getElementById('copyDayList').innerHTML=copyDayEntries.map((e,i)=>{
+    const gramsOk=extractGrams(e.serving)!==null;
+    return `<div class="copy-day-row">
+      <input type="checkbox" class="copy-day-cb" value="${i}" checked>
+      <div class="cdr-info">
+        <div class="cdr-name">${escHtml(e.name)}</div>
+        <div class="cdr-meta">${MEAL_ICONS[e.meal]||''} ${escHtml(e.meal)} · ${escHtml(e.serving||'')}</div>
+      </div>
+      <div class="cdr-portion">
+        <input type="number" class="cdr-qty" data-idx="${i}" value="100" min="0" step="any" oninput="updateCopyDayRowPreview(${i})">
+        <select class="cdr-unit" data-idx="${i}" onchange="onCopyDayUnitChange(${i})">
+          <option value="pct">%</option>
+          <option value="g" ${gramsOk?'':'disabled'}>g</option>
+        </select>
+      </div>
+      <div class="cdr-cal" id="cdrCal${i}">${Math.round(e.cal||0)} kcal</div>
+    </div>`;
+  }).join('');
+  openModal('copyDayModal');
+}
+function toggleAllCopyDay(on){document.querySelectorAll('.copy-day-cb').forEach(cb=>cb.checked=on);}
+
+function onCopyDayUnitChange(i){
+  const e=copyDayEntries[i]; if(!e) return;
+  const unitSel=document.querySelector(`.cdr-unit[data-idx="${i}"]`);
+  const qtyInput=document.querySelector(`.cdr-qty[data-idx="${i}"]`);
+  const baseGrams=extractGrams(e.serving);
+  const unit=unitSel.value;
+  const prevUnit=e._unit||'pct';
+  if(unit!==prevUnit){
+    const curVal=+qtyInput.value||0;
+    if(unit==='g'&&baseGrams){
+      qtyInput.value=Math.round(baseGrams*(curVal/100)*10)/10;
+    }else if(unit==='pct'&&baseGrams){
+      qtyInput.value=Math.round((curVal/baseGrams)*100);
+    }
+  }
+  e._unit=unit;
+  updateCopyDayRowPreview(i);
+}
+function getCopyDayRowPct(i){
+  const e=copyDayEntries[i]; if(!e) return 1;
+  const unitSel=document.querySelector(`.cdr-unit[data-idx="${i}"]`);
+  const qtyInput=document.querySelector(`.cdr-qty[data-idx="${i}"]`);
+  const baseGrams=extractGrams(e.serving);
+  const unit=unitSel?unitSel.value:'pct';
+  const v=+qtyInput.value||0;
+  return (unit==='g'&&baseGrams) ? v/baseGrams : v/100;
+}
+function updateCopyDayRowPreview(i){
+  const e=copyDayEntries[i]; if(!e) return;
+  const pct=getCopyDayRowPct(i);
+  const el=document.getElementById('cdrCal'+i);
+  if(el) el.textContent=Math.round((e.cal||0)*pct)+' kcal';
+}
+
+function confirmCopyDay(){
+  const rows=[...document.querySelectorAll('.copy-day-row')];
+  const time=getAUTime();
+  let count=0;
+  rows.forEach((rowEl,i)=>{
+    const cb=rowEl.querySelector('.copy-day-cb');
+    if(!cb.checked) return;
+    const e=copyDayEntries[i]; if(!e) return;
+    const unitSel=rowEl.querySelector('.cdr-unit');
+    const qtyInput=rowEl.querySelector('.cdr-qty');
+    const baseGrams=extractGrams(e.serving);
+    const unit=unitSel.value;
+    const qtyVal=+qtyInput.value||0;
+    const pct=(unit==='g'&&baseGrams)?qtyVal/baseGrams:qtyVal/100;
+    const portion=Math.round(pct*100);
+    let servingLabel;
+    if(unit==='g'&&baseGrams){ servingLabel=qtyVal+'g'; }
+    else { servingLabel=portion===100?(e.serving||''):`${portion}% of ${e.serving||'serving'}`; }
+    if(!dailyLogs[activeLogDate]) dailyLogs[activeLogDate]=[];
+    dailyLogs[activeLogDate].push({
+      name:e.name+(portion!==100?` (${portion}%)`:''),
+      serving:servingLabel,
+      meal:e.meal, cal:(e.cal||0)*pct, pro:(e.pro||0)*pct, carb:(e.carb||0)*pct, fat:(e.fat||0)*pct,
+      time, date:activeLogDate
+    });
+    count++;
+  });
+  if(!count){toast('Select at least one item to copy');return;}
+  saveLogs();
+  closeModal('copyDayModal');
+  renderDashboard();
+  toast(`${count} item${count!==1?'s':''} copied from previous day ✓`);
+}
 
 function saveNote(){
   const val=document.getElementById('dayNoteInput').value.trim();
@@ -990,13 +1150,15 @@ async function fetchOFF(enc){
   return results.slice(0,8);
 }
 
-function buildSRI(p, onclickStr){
+function buildSRI(p, onclickStr, showCheckbox, checked){
   const n=p.nutriments||{}, cal=Math.round(getKcal(n));
   const isGeneric=p._source==='generic';
   const sub=isGeneric
     ? `<span style="font-size:10px;background:var(--pro-dim);color:var(--pro);padding:1px 5px;border-radius:4px;font-weight:600">Generic</span>`
     : `<span style="font-size:11px;color:var(--text2)">${escHtml(p.brands||'')}${p.serving_size?' · '+p.serving_size:''}</span>`;
-  return `<div class="search-result-item" onclick="${onclickStr}">
+  const checkHtml=showCheckbox?`<div class="sri-check">${checked?'✓':''}</div>`:'';
+  return `<div class="search-result-item ${checked?'selected':''}" onclick="${onclickStr}">
+    ${checkHtml}
     <div style="flex:1;min-width:0"><div class="sri-name">${escHtml(p.product_name)}</div><div style="margin-top:2px">${sub}</div></div>
     <div class="sri-macros"><div class="sri-cal">${cal} kcal</div><div>P:${fmtG(n['proteins_100g'])} C:${fmtG(n['carbohydrates_100g'])} F:${fmtG(n['fat_100g'])}</div><div style="font-size:10px;color:var(--text3)">per 100g</div></div>
   </div>`;
@@ -1063,12 +1225,14 @@ async function doSearch(){
   if(!q) return toast('Enter a food name');
   document.getElementById('searchSpinner').style.display='block';
   document.getElementById('searchResults').innerHTML='';
+  multiSelect.search.sel.clear();
+  updateMultiBar('search');
   try{
     const results=await fetchFoodSearch(q);
     document.getElementById('searchSpinner').style.display='none';
     if(!results.length){document.getElementById('searchResults').innerHTML=`<div class="empty-state"><p>No results for "<strong>${escHtml(q)}</strong>". Try manual entry.</p></div>`;return;}
     window._sP=results;
-    document.getElementById('searchResults').innerHTML=results.map((_,i)=>buildSRI(results[i],`selectProduct(${i})`)).join('');
+    renderSearchResultsHTML();
   }catch(e){
     document.getElementById('searchSpinner').style.display='none';
     document.getElementById('searchResults').innerHTML=`<div class="empty-state"><p>Search failed. Check connection or use Manual Entry.</p></div>`;
@@ -1076,7 +1240,69 @@ async function doSearch(){
 }
 document.getElementById('foodSearch').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
 
+function renderSearchResultsHTML(){
+  const results=window._sP||[];
+  const active=multiSelect.search.active;
+  document.getElementById('searchResults').innerHTML=results.map((p,i)=>
+    buildSRI(p, active?`toggleSelect('search',${i})`:`selectProduct(${i})`, active, multiSelect.search.sel.has(i))
+  ).join('');
+}
+
 function selectProduct(i){ pendingProduct=window._sP[i]; openQtyModal(pendingProduct); }
+
+// ── MULTI-SELECT (search + recent tabs) ──
+function toggleMultiMode(ctx){
+  const m=multiSelect[ctx];
+  m.active=!m.active;
+  m.sel.clear();
+  const btn=document.getElementById(ctx+'MultiBtn');
+  if(btn) btn.textContent = m.active ? '✕ Cancel' : '☑ Select Multiple';
+  if(ctx==='search') renderSearchResultsHTML(); else renderRecentFoods();
+  updateMultiBar(ctx);
+}
+function toggleSelect(ctx,i){
+  const m=multiSelect[ctx];
+  if(m.sel.has(i)) m.sel.delete(i); else m.sel.add(i);
+  if(ctx==='search') renderSearchResultsHTML(); else renderRecentFoods();
+  updateMultiBar(ctx);
+}
+function updateMultiBar(ctx){
+  const bar=document.getElementById(ctx+'MultiBar'); if(!bar) return;
+  const m=multiSelect[ctx];
+  if(!m.active){ bar.style.display='none'; return; }
+  bar.style.display='flex';
+  bar.querySelector('.multi-count').textContent = m.sel.size ? `${m.sel.size} selected` : 'Tap items below to select';
+}
+function confirmMultiAdd(ctx){
+  const m=multiSelect[ctx];
+  if(!m.sel.size) return toast('Select at least one item first');
+  const meal=document.getElementById('logMealSelect').value;
+  let count=0;
+  if(ctx==='search'){
+    const results=window._sP||[];
+    [...m.sel].forEach(i=>{
+      const p=results[i]; if(!p) return;
+      const n=p.nutriments||{}, hasServing=getKcalServing(n)!==null;
+      const unit=hasServing?'serving':'100g', qty=hasServing?1:100;
+      const mm=calcMacrosForQty(p,unit,qty);
+      addEntry({name:p.product_name, serving:mm.serving, meal, cal:mm.cal, pro:mm.pro, carb:mm.carb, fat:mm.fat});
+      count++;
+    });
+  } else {
+    const recent=window._recentFoods||[];
+    [...m.sel].forEach(i=>{
+      const e=recent[i]; if(!e) return;
+      addEntry({name:e.name, serving:e.serving||'', meal, cal:e.cal||0, pro:e.pro||0, carb:e.carb||0, fat:e.fat||0});
+      count++;
+    });
+  }
+  m.active=false; m.sel.clear();
+  const btn=document.getElementById(ctx+'MultiBtn'); if(btn) btn.textContent='☑ Select Multiple';
+  updateMultiBar(ctx);
+  if(ctx==='search'){ document.getElementById('searchResults').innerHTML=''; document.getElementById('foodSearch').value=''; }
+  toast(`${count} item${count!==1?'s':''} logged to ${meal} at default portions ✓`);
+  showPage('dashboard');
+}
 
 function openQtyModal(p){
   const n=p.nutriments||{}, calServ=getKcalServing(n), hasServing=calServ!==null;
@@ -1233,15 +1459,25 @@ function renderRecentFoods(){
     if(recent.length>=40) break;
   }
 
+  // Store for relogFood/multi-select to reference
+  window._recentFoods = recent;
+
   if(!recent.length){
     list.innerHTML=`<div class="empty-state"><p>No foods logged yet — your history will appear here for quick re-logging.</p></div>`;
     return;
   }
 
+  const active=multiSelect.recent.active;
+  const hint = active ? 'Tap foods to select, then use "Add Selected" above.' : 'Tap a food to log it again to the selected meal.';
+
   list.innerHTML=`
-    <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Tap a food to log it again to the selected meal.</div>
-    ${recent.map((e,i)=>`
-      <div class="search-result-item" onclick="relogFood(${i})" style="cursor:pointer">
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${hint}</div>
+    ${recent.map((e,i)=>{
+      const checked=multiSelect.recent.sel.has(i);
+      const checkHtml=active?`<div class="sri-check">${checked?'✓':''}</div>`:'';
+      const onclick=active?`toggleSelect('recent',${i})`:`relogFood(${i})`;
+      return `<div class="search-result-item ${checked?'selected':''}" onclick="${onclick}" style="cursor:pointer">
+        ${checkHtml}
         <div style="flex:1;min-width:0">
           <div class="sri-name">${escHtml(e.name)}</div>
           <div class="sri-brand">${escHtml(e.serving||'')} <span style="color:var(--text3)">· ${e.meal}</span></div>
@@ -1250,15 +1486,21 @@ function renderRecentFoods(){
           <div class="sri-cal">${Math.round(e.cal||0)} kcal</div>
           <div>P:${fmtG(e.pro)} C:${fmtG(e.carb)} F:${fmtG(e.fat)}</div>
         </div>
-      </div>`).join('')}`;
+      </div>`;
+    }).join('')}`;
+}
 
-  // Store for relogFood to reference
-  window._recentFoods = recent;
+function extractGrams(str){
+  if(!str) return null;
+  const m=String(str).match(/([\d.]+)\s*g\b/i);
+  return m?parseFloat(m[1]):null;
 }
 
 function relogFood(i){
   const e=window._recentFoods[i];
   pendingRelogEntry=e;
+  relogBaseGrams=extractGrams(e.serving);
+  relogUnit='pct';
   document.getElementById('relogTitle').textContent=escHtml(e.name);
   document.getElementById('relogInfo').innerHTML=`
     <div class="product-confirm">
@@ -1271,17 +1513,54 @@ function relogFood(i){
         <span class="macro-chip chip-fat">F ${fmtG(e.fat)}</span>
       </div>
     </div>`;
+  buildRelogUnitToggle();
   document.getElementById('relogQtyInput').value=100;
+  updateRelogLabel();
   updateRelogPreview();
   openModal('relogModal');
 }
 
 let pendingRelogEntry=null;
 
+function buildRelogUnitToggle(){
+  const el=document.getElementById('relogUnitToggle');
+  const gramsOk=relogBaseGrams!==null;
+  el.innerHTML=`<div class="unit-pill ${relogUnit==='pct'?'active':''}" onclick="setRelogUnit('pct')">Percent</div>`+
+    (gramsOk?`<div class="unit-pill ${relogUnit==='grams'?'active':''}" onclick="setRelogUnit('grams')">Grams</div>`:'');
+}
+
+function setRelogUnit(u){
+  if(u===relogUnit) return;
+  const input=document.getElementById('relogQtyInput');
+  const curVal=+input.value||0;
+  if(u==='grams'&&relogBaseGrams){
+    input.value=Math.round(relogBaseGrams*(curVal/100)*10)/10;
+  }else if(u==='pct'&&relogBaseGrams){
+    input.value=Math.round((curVal/relogBaseGrams)*100);
+  }
+  relogUnit=u;
+  buildRelogUnitToggle();
+  updateRelogLabel();
+  updateRelogPreview();
+}
+
+function updateRelogLabel(){
+  document.getElementById('relogQtyLabel').textContent = relogUnit==='pct' ? 'How much? (%)' : 'How much? (grams)';
+  document.getElementById('relogQtyHint').textContent = relogUnit==='pct'
+    ? '100% = same amount as before · 50% = half · 200% = double'
+    : `Originally ${relogBaseGrams}g · enter the new amount in grams`;
+}
+
+function getRelogPct(){
+  const v=+document.getElementById('relogQtyInput').value||0;
+  if(relogUnit==='grams'&&relogBaseGrams) return v/relogBaseGrams;
+  return v/100;
+}
+
 function updateRelogPreview(){
   if(!pendingRelogEntry)return;
   const e=pendingRelogEntry;
-  const pct=+document.getElementById('relogQtyInput').value/100;
+  const pct=getRelogPct();
   document.getElementById('relogPreview').innerHTML=
     `Preview (${Math.round(pct*100)}%): <strong>${Math.round((e.cal||0)*pct)} kcal</strong> &nbsp;|&nbsp; P:${fmtG((e.pro||0)*pct)} C:${fmtG((e.carb||0)*pct)} F:${fmtG((e.fat||0)*pct)}`;
 }
@@ -1289,12 +1568,19 @@ function updateRelogPreview(){
 function confirmRelogFood(){
   if(!pendingRelogEntry)return;
   const e=pendingRelogEntry;
-  const pct=+document.getElementById('relogQtyInput').value/100;
+  const pct=getRelogPct();
   const meal=document.getElementById('logMealSelect').value;
   const portion=Math.round(pct*100);
+  let servingLabel;
+  if(relogUnit==='grams'&&relogBaseGrams){
+    const grams=+document.getElementById('relogQtyInput').value||0;
+    servingLabel=grams+'g';
+  }else{
+    servingLabel=portion===100?(e.serving||''):`${portion}% of ${e.serving||'serving'}`;
+  }
   addEntry({
     name:e.name+(portion!==100?` (${portion}%)`:''),
-    serving:portion===100?(e.serving||''):`${portion}% of ${e.serving||'serving'}`,
+    serving:servingLabel,
     meal, cal:(e.cal||0)*pct, pro:(e.pro||0)*pct,
     carb:(e.carb||0)*pct, fat:(e.fat||0)*pct
   });
